@@ -35,8 +35,12 @@ class CategoricalDistribution:
 def rdmol_to_smiles(rdmol):
     mol = Chem.Mol(rdmol)
     Chem.RemoveStereochemistry(mol)
-    mol = Chem.RemoveHs(mol)
-    return Chem.MolToSmiles(mol)
+    try:
+        mol = Chem.RemoveHs(mol)
+        mol = Chem.MolToSmiles(mol)
+    except:
+        mol = Chem.MolToSmiles(mol)
+    return mol
 
 
 class BasicMolecularMetrics(object):
@@ -149,13 +153,22 @@ class MoleculeProperties:
         return Crippen.MolLogP(rdmol)
 
     @staticmethod
-    def calculate_lipinski(rdmol):
-        rule_1 = Descriptors.ExactMolWt(rdmol) < 500
-        rule_2 = Lipinski.NumHDonors(rdmol) <= 5
-        rule_3 = Lipinski.NumHAcceptors(rdmol) <= 10
-        rule_4 = (logp := Crippen.MolLogP(rdmol) >= -2) & (logp <= 5)
-        rule_5 = Chem.rdMolDescriptors.CalcNumRotatableBonds(rdmol) <= 10
-        return np.sum([int(a) for a in [rule_1, rule_2, rule_3, rule_4, rule_5]])
+    def calculate_lipinski(rdmol, return_rule_violations=False):
+            weight = Descriptors.ExactMolWt(rdmol)
+            rule_1 = weight < 500
+            hdonors = Lipinski.NumHDonors(rdmol)
+            rule_2 = hdonors <= 5
+            hacceptors = Lipinski.NumHAcceptors(rdmol)
+            rule_3 = hacceptors <= 10
+            logp = Crippen.MolLogP(rdmol)
+            rule_4 = (logp >= -2) and (logp <= 5)
+            n_rotatable_bonds = Chem.rdMolDescriptors.CalcNumRotatableBonds(rdmol)
+            rule_5 = n_rotatable_bonds <= 10
+            psa = Descriptors.TPSA(rdmol)
+            rule_6 = psa <= 140
+            if return_rule_violations:
+                return np.sum([int(a) for a in [rule_1, rule_2, rule_3, rule_4, rule_5, rule_6]]), [rule_1, rule_2, rule_3, rule_4, rule_5, rule_6], [weight, hdonors, hacceptors, logp, n_rotatable_bonds, psa]
+            return np.sum([int(a) for a in [rule_1, rule_2, rule_3, rule_4, rule_5, rule_6]])
 
     @classmethod
     def calculate_diversity(cls, pocket_mols):
@@ -180,7 +193,7 @@ class MoleculeProperties:
         fp2 = Chem.RDKFingerprint(mol_b)
         return DataStructs.TanimotoSimilarity(fp1, fp2)
 
-    def evaluate(self, pocket_rdmols):
+    def evaluate(self, pocket_rdmols, return_lipinski_violations=False, return_diversity=True):
         """
         Run full evaluation
         Args:
@@ -199,13 +212,24 @@ class MoleculeProperties:
         all_sa = []
         all_logp = []
         all_lipinski = []
-        per_pocket_diversity = []
+        if return_lipinski_violations:
+            all_lipinski_violations = []
+            all_lipinski_values = []
+        if return_diversity:
+            per_pocket_diversity = []
         for pocket in tqdm(pocket_rdmols):
             all_qed.append([self.calculate_qed(mol) for mol in pocket])
             all_sa.append([self.calculate_sa(mol) for mol in pocket])
             all_logp.append([self.calculate_logp(mol) for mol in pocket])
-            all_lipinski.append([self.calculate_lipinski(mol) for mol in pocket])
-            per_pocket_diversity.append(self.calculate_diversity(pocket))
+            if return_lipinski_violations:
+                lipinski_sum, lipinski_violations, lipinski_values = zip(*[self.calculate_lipinski(mol, return_rule_violations=True) for mol in pocket])
+                all_lipinski.append(lipinski_sum)
+                all_lipinski_violations.append(lipinski_violations)
+                all_lipinski_values.append(lipinski_values)
+            else:
+                all_lipinski.append([self.calculate_lipinski(mol) for mol in pocket])
+            if return_diversity:
+                per_pocket_diversity.append(self.calculate_diversity(pocket))
 
         print(f"{sum([len(p) for p in pocket_rdmols])} molecules from "
               f"{len(pocket_rdmols)} pockets evaluated.")
@@ -222,9 +246,17 @@ class MoleculeProperties:
         lipinski_flattened = [x for px in all_lipinski for x in px]
         print(f"Lipinski: {np.mean(lipinski_flattened):.3f} \pm {np.std(lipinski_flattened):.2f}")
 
-        print(f"Diversity: {np.mean(per_pocket_diversity):.3f} \pm {np.std(per_pocket_diversity):.2f}")
-
-        return all_qed, all_sa, all_logp, all_lipinski, per_pocket_diversity
+        if return_diversity:
+            print(f"Diversity: {np.mean(per_pocket_diversity):.3f} \pm {np.std(per_pocket_diversity):.2f}")
+        
+        if return_lipinski_violations and return_diversity:
+            return all_qed, all_sa, all_logp, all_lipinski, per_pocket_diversity, all_lipinski_violations, all_lipinski_values
+        elif return_lipinski_violations:
+            return all_qed, all_sa, all_logp, all_lipinski, all_lipinski_violations, all_lipinski_values
+        elif return_diversity:
+            return all_qed, all_sa, all_logp, all_lipinski, per_pocket_diversity
+        else:
+            return all_qed, all_sa, all_logp, all_lipinski
 
     def evaluate_mean(self, rdmols):
         """

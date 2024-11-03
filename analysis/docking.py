@@ -8,16 +8,16 @@ import argparse
 import pandas as pd
 from rdkit import Chem
 from tqdm import tqdm
+from Bio.PDB import PDBParser
 
 try:
     import utils
 except ModuleNotFoundError as e:
     print(e)
 
-
 def calculate_smina_score(pdb_file, sdf_file):
     # add '-o <name>_smina.sdf' if you want to see the output
-    out = os.popen(f'smina.static -l {sdf_file} -r {pdb_file} '
+    out = os.popen(f'smina.static -l {sdf_file} -r {pdb_file}'
                    f'--score_only').read()
     matches = re.findall(
         r"Affinity:[ ]+([+-]?[0-9]*[.]?[0-9]+)[ ]+\(kcal/mol\)", out)
@@ -57,7 +57,7 @@ def sdf_to_pdbqt(sdf_file, pdbqt_outfile, mol_id):
 
 
 def calculate_qvina2_score(receptor_file, sdf_file, out_dir, size=20,
-                           exhaustiveness=16, return_rdmol=False):
+                           exhaustiveness=16, return_rdmol=False, pocket_center=None):
 
     receptor_file = Path(receptor_file)
     sdf_file = Path(sdf_file)
@@ -73,6 +73,12 @@ def calculate_qvina2_score(receptor_file, sdf_file, out_dir, size=20,
     rdmols = []  # for if return rdmols
     suppl = Chem.SDMolSupplier(str(sdf_file), sanitize=False)
     for i, mol in enumerate(suppl):  # sdf file may contain several ligands
+        if mol is None:
+            print(f'Could not read molecule {i} from {sdf_file}')
+            scores.append(np.nan)
+            if return_rdmol:
+                rdmols.append(None)
+            continue
         ligand_name = f'{sdf_file.stem}_{i}'
         # prepare ligand
         ligand_pdbqt_file = Path(out_dir, ligand_name + '.pdbqt')
@@ -89,11 +95,14 @@ def calculate_qvina2_score(receptor_file, sdf_file, out_dir, size=20,
             sdf_to_pdbqt(sdf_file, ligand_pdbqt_file, i)
 
             # center box at ligand's center of mass
-            cx, cy, cz = mol.GetConformer().GetPositions().mean(0)
+            if pocket_center is None:
+                cx, cy, cz = mol.GetConformer().GetPositions().mean(0)
+            else:
+                cx, cy, cz = pocket_center[0], pocket_center[1], pocket_center[2]
 
             # run QuickVina 2
             out = os.popen(
-                f'qvina2.1 --receptor {receptor_pdbqt_file} '
+                f'/home/markus/Malabio/DiffSBDD/qvina2.1 --receptor {receptor_pdbqt_file} '
                 f'--ligand {ligand_pdbqt_file} '
                 f'--center_x {cx:.4f} --center_y {cy:.4f} --center_z {cz:.4f} '
                 f'--size_x {size} --size_y {size} --size_z {size} '
@@ -141,16 +150,42 @@ if __name__ == '__main__':
     parser.add_argument('--write_csv', action='store_true')
     parser.add_argument('--write_dict', action='store_true')
     parser.add_argument('--dataset', type=str, default='moad')
+    parser.add_argument('--new_receptor_target', type=str, default=None)
+    parser.add_argument('--new_target_binding_pocket', type=str, nargs='+', default=None)
     args = parser.parse_args()
 
     assert (args.sdf_dir is not None) ^ (args.sdf_files is not None)
 
     args.out_dir.mkdir(exist_ok=True)
 
+    print(f"working dir is {os.getcwd()}")
+
     results = {'receptor': [], 'ligand': [], 'scores': []}
     results_dict = {}
     sdf_files = list(args.sdf_dir.glob('[!.]*.sdf')) \
         if args.sdf_dir is not None else args.sdf_files
+    
+    # If another target is given, the coordinates for the binding pocket needs to be found aswell
+    if args.new_receptor_target:
+        
+        pdb_struct = PDBParser(QUIET=True).get_structure('', Path(args.pdbqt_dir, args.new_receptor_target + ".pdbqt"))[0]
+        resi_list = args.new_target_binding_pocket
+        if len(resi_list) == 1:
+            pocket_ids = resi_list[0].split(' ')
+        else:
+            pocket_ids = resi_list
+
+        residues = [
+            pdb_struct[x.split(':')[0]][(' ', int(x.split(':')[1]), ' ')]
+            for x in pocket_ids]
+
+        atom_coords = []
+        for residue in residues:
+            for atom in residue:
+                atom_coords.append(atom.get_coord())
+        atom_coords = np.array(atom_coords)
+        new_ligand_coord_mean = np.mean(atom_coords, axis=0)
+
     pbar = tqdm(sdf_files)
     for sdf_file in pbar:
         pbar.set_description(f'Processing {sdf_file.name}')
@@ -163,17 +198,22 @@ if __name__ == '__main__':
             underscores, e.g.: 1abc-bio1_pocket0_gen.sdf
             """
             ligand_name = sdf_file.stem
+            print(ligand_name)
             receptor_name, pocket_id, *suffix = ligand_name.split('_')
+            if args.new_receptor_target is not None:
+                receptor_name = args.new_receptor_target    
             suffix = '_'.join(suffix)
             receptor_file = Path(args.pdbqt_dir, receptor_name + '.pdbqt')
         elif args.dataset == 'crossdocked':
             ligand_name = sdf_file.stem
             receptor_name = ligand_name[:-4]
+            if args.new_receptor_target is not None:
+                receptor_name = args.new_receptor_target
             receptor_file = Path(args.pdbqt_dir, receptor_name + '.pdbqt')
 
         # try:
         scores, rdmols = calculate_qvina2_score(
-            receptor_file, sdf_file, args.out_dir, return_rdmol=True)
+            receptor_file, sdf_file, args.out_dir, return_rdmol=True, pocket_center=new_ligand_coord_mean)
         # except AttributeError as e:
         #     print(e)
         #     continue

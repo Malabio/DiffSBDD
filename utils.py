@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from rdkit import Chem
 import networkx as nx
 from networkx.algorithms import isomorphism
-from Bio.PDB.Polypeptide import is_aa
+from Bio.PDB.Polypeptide import is_aa, three_to_index, index_to_one
 
 
 class Queue():
@@ -69,6 +69,13 @@ def write_xyz_file(coords, atom_types, filename):
     with open(filename, 'w') as f:
         f.write(out)
 
+def read_sdf_file(sdf_path, sanitize=True, removeHs=False):
+    # NOTE Changed to be compatitble with more versions of rdkit
+    # with Chem.SDMolSupplier(str(sdf_path)) as s:
+    #     return [m for m in s]
+
+    s = Chem.SDMolSupplier(str(sdf_path), removeHs=removeHs, sanitize=sanitize)
+    return [m for m in s]
 
 def write_sdf_file(sdf_path, molecules):
     # NOTE Changed to be compatitble with more versions of rdkit
@@ -232,3 +239,9 @@ class AppendVirtualNodes:
         data['num_virtual_atoms'] = n_virt
 
         return data
+
+def three_to_one(amino_str: str):
+    """
+    three_to_one from biopython is for some reason not installed, this can be used instead.
+    """
+    return index_to_one(three_to_index(amino_str))

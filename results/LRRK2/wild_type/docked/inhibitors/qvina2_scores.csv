@@ -1,0 +1,8 @@
+,receptor,ligand,scores
+0,/home/markus/Malabio/DiffSBDD/data/production/LRRK2/wild_type/pdbqt/wild_type.pdbqt,/home/markus/Malabio/DiffSBDD/results/LRRK2/wild_type/inhibitors/wildtype_gzd824_knowninhib.sdf,[-7.4]
+1,/home/markus/Malabio/DiffSBDD/data/production/LRRK2/wild_type/pdbqt/wild_type.pdbqt,/home/markus/Malabio/DiffSBDD/results/LRRK2/wild_type/inhibitors/wildtype_dnl201_knowninhib.sdf,[-7.6]
+2,/home/markus/Malabio/DiffSBDD/data/production/LRRK2/wild_type/pdbqt/wild_type.pdbqt,/home/markus/Malabio/DiffSBDD/results/LRRK2/wild_type/inhibitors/wildtype_rebastinib_knowninhib.sdf,[-10.0]
+3,/home/markus/Malabio/DiffSBDD/data/production/LRRK2/wild_type/pdbqt/wild_type.pdbqt,/home/markus/Malabio/DiffSBDD/results/LRRK2/wild_type/inhibitors/wildtype_ponatinib_knowninhib.sdf,[-9.6]
+4,/home/markus/Malabio/DiffSBDD/data/production/LRRK2/wild_type/pdbqt/wild_type.pdbqt,/home/markus/Malabio/DiffSBDD/results/LRRK2/wild_type/inhibitors/wildtype_mli2_knowninhib.sdf,[-10.0]
+5,/home/markus/Malabio/DiffSBDD/data/production/LRRK2/wild_type/pdbqt/wild_type.pdbqt,/home/markus/Malabio/DiffSBDD/results/LRRK2/wild_type/inhibitors/wildtype_gne7915_knowninhib.sdf,[-8.6]
+6,/home/markus/Malabio/DiffSBDD/data/production/LRRK2/wild_type/pdbqt/wild_type.pdbqt,/home/markus/Malabio/DiffSBDD/results/LRRK2/wild_type/inhibitors/wildtype_lrrk2in1_knowninhib.sdf,[-9.9]

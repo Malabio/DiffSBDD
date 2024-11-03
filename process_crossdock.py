@@ -11,7 +11,9 @@ from tqdm import tqdm
 import numpy as np
 
 from Bio.PDB import PDBParser
-from Bio.PDB.Polypeptide import three_to_one, is_aa
+from Bio.PDB.Polypeptide import is_aa
+# from Bio.PDB.Polypeptide import three_to_one
+from utils import three_to_one
 from rdkit import Chem
 from scipy.ndimage import gaussian_filter
 
@@ -35,7 +37,7 @@ def process_ligand_and_pocket(pdbfile, sdffile,
     # remove H atoms if not in atom_dict, other atom types that aren't allowed
     # should stay so that the entire ligand can be removed from the dataset
     lig_atoms = [a.GetSymbol() for a in ligand.GetAtoms()
-                 if (a.GetSymbol().capitalize() in atom_dict or a.element != 'H')]
+                 if (a.GetSymbol().capitalize() in atom_dict or a.GetSymbol() != 'H')]
     lig_coords = np.array([list(ligand.GetConformer(0).GetAtomPosition(idx))
                            for idx in range(ligand.GetNumAtoms())])
 
@@ -125,6 +127,8 @@ def compute_smiles(positions, one_hot, mask):
     pbar = tqdm(enumerate(zip(positions, atom_types)),
                 total=len(np.unique(mask)))
     for i, (pos, atom_type) in pbar:
+        if len(pos) != len(atom_type):
+            continue
         mol = build_molecule(pos, atom_type, dataset_info)
         mol = rdmol_to_smiles(mol)
         if mol is not None:

@@ -373,11 +373,11 @@ class ConditionalDDPM(EnVariationalDiffusion):
 
         timesteps = self.T
         n_samples = len(pocket['size'])
-        device = pocket['x'].device
+        # device = pocket['x'].device
 
         # xh0_pocket is the original pocket while xh_pocket might be a
         # translated version of it
-        xh0_pocket = torch.cat([pocket['x'], pocket['one_hot']], dim=1)
+        # xh0_pocket = torch.cat([pocket['x'], pocket['one_hot']], dim=1)
 
         lig_mask = ligand['mask']
 

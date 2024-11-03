@@ -128,8 +128,8 @@ def diversify_ligands(model, pocket, mols, timesteps,
         (pocket_com_before - pocket_com_after)[lig_mask]
 
     # Build mol objects
-    x = out_lig[:, :model.x_dims].detach().cpu()
-    atom_type = out_lig[:, model.x_dims:].argmax(1).detach().cpu()
+    x = out_lig[:, :model.x_dims] #.detach().cpu()
+    atom_type = out_lig[:, model.x_dims:].argmax(1) #.detach().cpu()
 
     molecules = []
     for mol_pc in zip(utils.batch_to_list(x, lig_mask),
@@ -160,7 +160,7 @@ if __name__ == "__main__":
     parser.add_argument('--top_k', type=int, default=7)
     parser.add_argument('--outfile', type=Path, default='output.sdf')
     parser.add_argument('--relax', action='store_true')
-
+    parser.add_argument('--mols_to_save', type=str, default='last')
 
     args = parser.parse_args()
 
@@ -170,6 +170,9 @@ if __name__ == "__main__":
     population_size = args.population_size
     evolution_steps = args.evolution_steps
     top_k = args.top_k
+    if top_k > population_size:
+        print(f"Setting top_k to be {population_size} as it cannot be bigger than population_size.")
+        top_k = population_size
 
     # Load model
     model = LigandPocketDDPM.load_from_checkpoint(
@@ -188,6 +191,10 @@ if __name__ == "__main__":
         objective_function = MoleculeProperties().calculate_qed
     elif args.objective == 'sa':
         objective_function = MoleculeProperties().calculate_sa
+    elif args.objective == 'logp':
+        objective_function = MoleculeProperties().calculate_logp
+    elif args.objective == 'lipinski':
+        objective_function = MoleculeProperties().calculate_lipinski
     else:
         ### IMPLEMENT YOUR OWN OBJECTIVE
         ### FUNCTIONS HERE 
@@ -196,13 +203,14 @@ if __name__ == "__main__":
     ref_mol = Chem.SDMolSupplier(args.ref_ligand)[0]
 
     # Store molecules in history dataframe 
-    buffer = pd.DataFrame(columns=['generation', 'score', 'fate' 'mol', 'smiles'])
+    # buffer = pd.DataFrame(columns=['generation', 'score', 'fate' 'mol', 'smiles'])
 
     # Population initialization
-    buffer = buffer.append({'generation': 0,
-                            'score': objective_function(ref_mol),
-                            'fate': 'initial', 'mol': ref_mol,
-                            'smiles': Chem.MolToSmiles(ref_mol)}, ignore_index=True)
+    buffer = pd.DataFrame({'generation': [0],
+                            'score': [objective_function(ref_mol)],
+                            'fate': ['initial'],
+                            'mol': [ref_mol],
+                            'smiles': [Chem.MolToSmiles(ref_mol)]})
 
     for generation_idx in range(evolution_steps):
 
@@ -215,7 +223,8 @@ if __name__ == "__main__":
             molecules = top_k_molecules * (population_size // top_k)
 
             # Update the fate of selected top k molecules in the buffer
-            buffer.loc[buffer['generation'] == generation_idx, 'fate'] = 'survived'
+            buffer.loc[(buffer["mol"].isin(molecules)) & (buffer['generation'] == generation_idx), 'fate'] = 'survived'
+            # buffer.loc[buffer['generation'] == generation_idx, 'fate'] = 'survived' GAMLE LINJE
 
             # Ensure the right number of molecules
             if len(molecules) < population_size:
@@ -235,13 +244,18 @@ if __name__ == "__main__":
         
         # Evaluate and save molecules
         for mol in molecules:
-            buffer = buffer.append({'generation': generation_idx + 1,
-            'score': objective_function(mol),
-            'fate': 'purged',
-            'mol': mol,
-            'smiles': Chem.MolToSmiles(mol)}, ignore_index=True)
+            new_row = pd.DataFrame({'generation': [generation_idx + 1],
+                                    'score': [objective_function(mol)],
+                                    'fate': 'purged',
+                                    'mol': [mol],
+                                    'smiles': [Chem.MolToSmiles(mol)]})
+            buffer = pd.concat([buffer, new_row], ignore_index=True)
 
-
+    # Get the best molecules
+    if args.mols_to_save == "last":
+        molecules = molecules
+    elif args.mols_to_save == "best":
+        molecules = buffer.nlargest(population_size, 'score')["mol"].tolist()
     # Make SDF files
     utils.write_sdf_file(args.outfile, molecules)
     # Save buffer
