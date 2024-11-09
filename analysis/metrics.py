@@ -6,6 +6,8 @@ from analysis.SA_Score.sascorer import calculateScore
 
 from analysis.molecule_builder import build_molecule
 from copy import deepcopy
+from openbabel import openbabel as ob
+import requests
 
 
 class CategoricalDistribution:
@@ -169,6 +171,34 @@ class MoleculeProperties:
             if return_rule_violations:
                 return np.sum([int(a) for a in [rule_1, rule_2, rule_3, rule_4, rule_5, rule_6]]), [rule_1, rule_2, rule_3, rule_4, rule_5, rule_6], [weight, hdonors, hacceptors, logp, n_rotatable_bonds, psa]
             return np.sum([int(a) for a in [rule_1, rule_2, rule_3, rule_4, rule_5, rule_6]])
+
+    @staticmethod
+    def calculate_pka(rdmol):
+        # return None, None
+        # Convert to OpenBabel molecule
+        upload_url=r'http://xundrug.cn:5001/modules/upload0/'
+        smile = Chem.MolToSmiles(rdmol)
+        param={"Smiles" : ("tmg", smile)}
+        headers={'token':'O05DriqqQLlry9kmpCwms2IJLC0MuLQ7'}
+        response=requests.post(url=upload_url, files=param, headers=headers)
+        if response.status_code != 200:
+            print(f"Error for pKa prediction, did not get correct response, got response code {response.status_code}")
+            pka_datas = {'Acid': None, 'Base': None}
+        try:
+            jsonbool=int(response.headers['ifjson'])
+            if jsonbool==1:
+                res_json=response.json()
+                if res_json['status'] == 200:
+                    pka_datas = res_json['gen_datas']
+                else:
+                    raise RuntimeError("Error for pKa prediction")
+            else:
+                raise RuntimeError("Error for pKa prediction")
+        except:
+            pka_datas = {'Acid': None, 'Base': None}
+        pka_acid = pka_datas['Acid']
+        pka_base = pka_datas['Base']
+        return pka_acid, pka_base
 
     @classmethod
     def calculate_diversity(cls, pocket_mols):

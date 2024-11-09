@@ -1,8 +1,0 @@
-,receptor,ligand,scores
-0,/home/markus/Malabio/DiffSBDD/data/production/LRRK2/G2019S/pdbqt/G2019S.pdbqt,/home/markus/Malabio/DiffSBDD/results/LRRK2/G2019S/inhibitors/G2019S_rebastinib_knowninhib.sdf,[-10.2]
-1,/home/markus/Malabio/DiffSBDD/data/production/LRRK2/G2019S/pdbqt/G2019S.pdbqt,/home/markus/Malabio/DiffSBDD/results/LRRK2/G2019S/inhibitors/G2019S_mli2_knowninhib.sdf,[-9.8]
-2,/home/markus/Malabio/DiffSBDD/data/production/LRRK2/G2019S/pdbqt/G2019S.pdbqt,/home/markus/Malabio/DiffSBDD/results/LRRK2/G2019S/inhibitors/G2019S_dnl201_knowninhib.sdf,[-7.4]
-3,/home/markus/Malabio/DiffSBDD/data/production/LRRK2/G2019S/pdbqt/G2019S.pdbqt,/home/markus/Malabio/DiffSBDD/results/LRRK2/G2019S/inhibitors/G2019S_gzd824_knowninhib.sdf,[-8.3]
-4,/home/markus/Malabio/DiffSBDD/data/production/LRRK2/G2019S/pdbqt/G2019S.pdbqt,/home/markus/Malabio/DiffSBDD/results/LRRK2/G2019S/inhibitors/G2019S_ponatinib_knowninhib.sdf,[-9.6]
-5,/home/markus/Malabio/DiffSBDD/data/production/LRRK2/G2019S/pdbqt/G2019S.pdbqt,/home/markus/Malabio/DiffSBDD/results/LRRK2/G2019S/inhibitors/G2019S_lrrk2in1_knowninhib.sdf,[-9.9]
-6,/home/markus/Malabio/DiffSBDD/data/production/LRRK2/G2019S/pdbqt/G2019S.pdbqt,/home/markus/Malabio/DiffSBDD/results/LRRK2/G2019S/inhibitors/G2019S_gne7915_knowninhib.sdf,[-9.0]
