@@ -7,7 +7,7 @@ PDB_BINDING_POCKETS=("A:1885 A:1886 A:1887 A:1888 A:1889 A:1893 A:1895 A:1904 A:
                     "A:1885 A:1886 A:1887 A:1888 A:1889 A:1890 A:1893 A:1895 A:1902 A:1903 A:1904 A:1905 A:1906 A:1933 A:1947 A:1948 A:1949 A:1950 A:1951 A:1952 A:1953 A:1954 A:1955 A:1957 A:1994 A:1996 A:1998 A:1999 A:2000 A:2001 A:2016 A:2017 A:2019 A:2020 A:2033 A:2034 A:2035"
                     "A:1885 A:1886 A:1887 A:1888 A:1889 A:1890 A:1891 A:1892 A:1893 A:1895 A:1902 A:1903 A:1904 A:1905 A:1906 A:1933 A:1947 A:1948 A:1949 A:1950 A:1951 A:1952 A:1953 A:1955 A:1956 A:1957 A:1994 A:1996 A:1998 A:1999 A:2000 A:2001 A:2002 A:2003 A:2016 A:2017 A:2018 A:2019 A:2020 A:2033 A:2034 A:2035")
 BASE_DIR="/home/markus/Malabio/DiffSBDD"
-OPTIMIZATION_STEPS=("100")
+OPTIMIZATION_STEPS=("100" "50")
 
 cd $BASE_DIR
 
@@ -61,8 +61,8 @@ while [ $counter2 -lt ${#PDB_IDS[@]} ]; do
                     --out_dir $OUT_DIR \
                     --new_receptor_target $pdb_id \
                     --new_target_binding_pocket $binding_pocket 
-            ((counter++))
         done
+        ((counter++))
     done
     # Also dock for the known inhibitors
     SDF_DIR="$BASE_DIR/results/$PROTEIN/inhibitors/"

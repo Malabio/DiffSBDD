@@ -5,7 +5,7 @@ PDB_IDS=("8TZC" "7LI3" "8TXZ")
 PROTEIN_VARIANTS=("G2019S" "G2019S" "wild_type")
 BASE_DIR="/home/markus/Malabio/DiffSBDD"
 
-OPTIMIZATION_STEPS=("100")
+OPTIMIZATION_STEPS=("100" "50")
 
 # Go to the base directory
 cd $BASE_DIR

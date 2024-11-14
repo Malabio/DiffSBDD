@@ -9,6 +9,7 @@ from rdkit import Chem
 from torch_scatter import scatter_mean
 from openbabel import openbabel
 openbabel.obErrorLog.StopLogging()  # suppress OpenBabel messages
+import os
 
 import utils
 from lightning_modules import LigandPocketDDPM
@@ -60,7 +61,7 @@ def prepare_substructure(ref_ligand, fix_atoms, pdb_model):
     return coord, one_hot
 
 
-def inpaint_ligand(model, pdb_file, n_samples, ligand, fix_atoms,
+def inpaint_ligand(model, pdb_file, n_samples, ligand, fix_atoms, pocket_residues=None,
                    add_n_nodes=None, center='ligand', sanitize=False,
                    largest_frag=False, relax_iter=0, timesteps=None,
                    resamplings=1, save_traj=False):
@@ -74,6 +75,7 @@ def inpaint_ligand(model, pdb_file, n_samples, ligand, fix_atoms,
                 contained in the PDB file, or path to an SDF file that
                 contains the ligand; used to define the pocket
         fix_atoms: ligand atoms that should be fixed, e.g. "C1 N6 C5 C12"
+        pocket_residues: residues that define the pocket, if None, the residues are given by the reference ligand.
         center: 'ligand' or 'pocket'
         add_n_nodes: number of ligand nodes to add, sampled randomly if 'None'
         sanitize: whether to sanitize molecules or not
@@ -97,7 +99,12 @@ def inpaint_ligand(model, pdb_file, n_samples, ligand, fix_atoms,
     pdb_model = PDBParser(QUIET=True).get_structure('', pdb_file)[0]
 
     # Define pocket based on reference ligand
-    residues = utils.get_pocket_from_ligand(pdb_model, ligand)
+    if pocket_residues is not None:
+        residues = [
+            pdb_model[x.split(':')[0]][(' ', int(x.split(':')[1]), ' ')]
+            for x in args.resi_list]
+    else:
+        residues = utils.get_pocket_from_ligand(pdb_model, ligand)
     pocket = model.prepare_pocket(residues, repeats=n_samples)
 
     # Get fixed ligand substructure
@@ -190,21 +197,21 @@ def inpaint_ligand(model, pdb_file, n_samples, ligand, fix_atoms,
 
 
 if __name__ == "__main__":
-
     parser = argparse.ArgumentParser()
     parser.add_argument('checkpoint', type=Path)
     parser.add_argument('--pdbfile', type=str)
     parser.add_argument('--ref_ligand', type=str, default=None)
     parser.add_argument('--fix_atoms', type=str, nargs='+', default=None)
     parser.add_argument('--center', type=str, default='ligand', choices={'ligand', 'pocket'})
-    parser.add_argument('--outfile', type=Path)
+    parser.add_argument('--outfile', type=Path, default=None)
     parser.add_argument('--n_samples', type=int, default=20)
     parser.add_argument('--add_n_nodes', type=int, default=None)
     parser.add_argument('--relax', action='store_true')
     parser.add_argument('--sanitize', action='store_true')
     parser.add_argument('--resamplings', type=int, default=20)
-    parser.add_argument('--timesteps', type=int, default=50)
+    parser.add_argument('--timesteps', type=int, default=None)
     parser.add_argument('--save_traj', action='store_true')
+    parser.add_argument('--resi_list', type=str, nargs='+', default=None)
     args = parser.parse_args()
 
     pdb_id = Path(args.pdbfile).stem
@@ -216,9 +223,14 @@ if __name__ == "__main__":
         args.checkpoint, map_location=device)
     model = model.to(device)
 
-    molecules = inpaint_ligand(model, args.pdbfile, args.n_samples,
-                               args.ref_ligand, args.fix_atoms,
-                               args.add_n_nodes, center=args.center,
+    molecules = inpaint_ligand(model, 
+                               args.pdbfile, 
+                               args.n_samples,
+                               args.ref_ligand, 
+                               args.fix_atoms,
+                               args.resi_list, 
+                               args.add_n_nodes, 
+                               center=args.center,
                                sanitize=args.sanitize,
                                largest_frag=False,
                                relax_iter=(200 if args.relax else 0),
@@ -227,4 +239,19 @@ if __name__ == "__main__":
                                save_traj=args.save_traj)
 
     # Make SDF files
-    utils.write_sdf_file(args.outfile, molecules)
+    # If no output file is specified, use the reference ligand name to make the path
+    if args.outfile is None:
+        if args.ref_ligand is None:
+            raise ValueError("Please specify an output file name.")
+        ref_lig_split = args.ref_ligand.split('/')
+        pdb_split = args.pdbfile.split('/')
+        ref_lig_name_start = "/".join(ref_lig_split[:-3]) + "/output" + "/" + ref_lig_split[-2] + "/" + f"{pdb_split[3]}_{pdb_split[-2]}_size{args.add_n_nodes}"
+        counter = 1
+        ref_lig_name = ref_lig_name_start
+        while os.path.exists(ref_lig_name):
+            ref_lig_name = ref_lig_name_start + f"_{counter}"
+            counter += 1
+        outfile = Path(ref_lig_name + ".sdf")
+    else:
+        outfile = args.outfile
+    utils.write_sdf_file(outfile, molecules)

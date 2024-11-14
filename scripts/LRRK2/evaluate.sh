@@ -10,7 +10,7 @@ SDF_VARIANTS=()
 SDF_IDS=()
 DOCKING_VARIANTS=()
 DOCKING_IDS=()
-OPTIMIZATION_STEPS=("100")
+OPTIMIZATION_STEPS=("100" "50")
 
 counter=0
 while [ $counter -lt ${#PDB_IDS[@]} ]; do

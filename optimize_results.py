@@ -152,9 +152,9 @@ if __name__ == "__main__":
     parser.add_argument('--checkpoint', type=Path, default='checkpoints/crossdocked_fullatom_cond.ckpt')
     parser.add_argument('--pdbfile', type=str, default='example/5ndu.pdb')
     parser.add_argument('--evaluation_file', type=str, default='example/evaluation.csv')
-    parser.add_argument('--metric_sorting', type=str, default=None)
-    parser.add_argument('--metric_cutoff', type=float, default=None)
-    parser.add_argument('--metric_ascend', action='store_true')
+    parser.add_argument('--metric_sorting', type=str, nargs='+', default=None)
+    parser.add_argument('--metric_cutoff', type=str, nargs='+', default=None)
+    parser.add_argument('--metric_ascending', type=str, nargs='+', default=None)
     parser.add_argument('--variant', type=str, default='None')
     parser.add_argument('--objectives', type=list, default=['qed', 'sa', 'logp']) 
     parser.add_argument('--timesteps', type=int, default=100)
@@ -186,26 +186,40 @@ if __name__ == "__main__":
 
     # Load evaluation file of the generated ligands with header in the first row
     evaluation = pd.read_csv(args.evaluation_file, sep=',', header=0)
+    # Convert the metrics lists
+    metric_sorting = args.metric_sorting
+    metric_cutoff = [float(i) for i in args.metric_cutoff]
+    metric_ascending = [i == "True" for i in args.metric_ascending]
     # Sort the evaluation file based on the sort_metric
-    if args.metric_sorting is not None:
-        assert args.metric_sorting in evaluation.columns, f"Sort metric {args.sort_metric} not found in evaluation file."
-        evaluation = evaluation.sort_values(by=args.metric_sorting, ascending=False)
-    if args.metric_cutoff is not None:
-        if args.metric_ascend:
-            evaluation = evaluation[evaluation[args.metric_sorting] > args.metric_cutoff]
+    for metric in metric_sorting:
+        if metric not in evaluation.columns:
+            raise ValueError(f"Sort metric {metric} not found in evaluation file.")
+    evaluation = evaluation.sort_values(by=metric_sorting, ascending=[not i for i in metric_ascending])
+    # Filter the evaluation file based on the cutoff
+    for metric, cutoff, ascending in zip(metric_sorting, metric_cutoff, metric_ascending):
+        if ascending:
+            evaluation = evaluation[evaluation[metric] > cutoff]
         else:
-            evaluation = evaluation[evaluation[args.metric_sorting] < args.metric_cutoff]
-
+            evaluation = evaluation[evaluation[metric] < cutoff]
+    # Check that the evaluation file is not empty
+    if evaluation.shape[0] == 0:
+        raise ValueError(f"Evaluation file is empty after filtering. Maybe the cutoff is too strict.")
     # Load PDB
     pdb_model = PDBParser(QUIET=True).get_structure('', args.pdbfile)[0]
     # Now optimize for each molecule in the evaluation file
     for idx, row in evaluation.iterrows():
         # Load reference ligand
         filename = row['Filename']
-        idx = row["sdfFileIdx"]
-        size_str = '_'.join(filename.split('/')[-1].split('_')[2:]).split('.')[0]
+        ref_mol_name_split = filename.split('_')
+        for i in ref_mol_name_split:
+            if "size" in i:
+                size_str = i.replace("size", "")
+                break
         # Load reference ligand
-        ref_mol = Chem.SDMolSupplier(filename)[idx]
+        protein_name = args.pdbfile.split('/')[2]
+        protein_pdb = args.pdbfile.split('/')[5]
+        ref_mol_path = Path(f"results/{protein_name}/{ref_mol_name_split[0]}/{ref_mol_name_split[1]}/{row['Method']}/docked/{ref_mol_name_split[0]}/{ref_mol_name_split[1]}/{filename}")
+        ref_mol = Chem.SDMolSupplier(ref_mol_path)[0]
         # Prepare ligand + pocket
         # Define pocket based on reference ligand
         if args.resi_list is not None:
@@ -252,7 +266,7 @@ if __name__ == "__main__":
                     previous_gen = buffer[buffer['generation'] == generation_idx]
                     # If LogP is the objective, we want to select the top k molecules closest to a value of 3 as this is the middle of the optimal range
                     if objective == 'logp':
-                        previous_gen['score'] = (previous_gen['score'] - 3).abs()
+                        previous_gen.loc[:, 'score'] = (previous_gen['score'] - 2).abs()
                         top_k_molecules = previous_gen.nsmallest(top_k, 'score')['mol'].tolist()
                     else:
                         top_k_molecules = previous_gen.nlargest(top_k, 'score')['mol'].tolist()
@@ -289,7 +303,16 @@ if __name__ == "__main__":
                     buffer_all = pd.concat([buffer_all, new_row], ignore_index=True)
 
         molecules = buffer_all["mol"].tolist()
+        # Make dir for saving results if it does not exist
+        if not args.outdir.exists():
+            args.outdir.mkdir(parents=True, exist_ok=True)
+        # Check if SDF file already exists
+        output_file = args.outdir / f"{args.variant}_{protein_pdb}_size{size_str}.sdf"
+        counter = 1
+        while output_file.exists():
+            output_file = args.outdir / f"{args.variant}_{protein_pdb}_size{size_str}_{counter}.sdf"
+            counter += 1
         # Make SDF files
-        utils.write_sdf_file(args.outdir / f"{args.variant}_opt_{size_str}.sdf", molecules)
+        utils.write_sdf_file(output_file, molecules)
         # Save buffer
-        buffer_all.to_csv(args.outdir / f"{args.variant}_opt_{size_str}_buffer.csv", index=False)
+        buffer_all.to_csv(f"{output_file}".replace('.sdf', '.csv'), index=False)

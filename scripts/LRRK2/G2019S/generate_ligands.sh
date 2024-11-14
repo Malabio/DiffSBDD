@@ -24,7 +24,7 @@ mkdir -p $OUTDIR
 
 # Range of num_nodes_lig values (from 25 to 70)
 for NUM_NODES in $(seq $MIN_NODES $MAX_NODES); do
-    OUTFILE="$OUTDIR/${VARIANT}_${PDB_ID}_size${NUM_NODES}.sdf"
+    OUTFILE="$OUTDIR/${VARIANT}_${PDB_ID}_size${NUM_NODES}_3.sdf"
     echo "Running ligand generation with num_nodes_lig=$NUM_NODES..."
     python generate_ligands.py $CKPT $COMMON_OPTS --outfile $OUTFILE --num_nodes_lig $NUM_NODES
 done

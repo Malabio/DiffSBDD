@@ -46,4 +46,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     for sdf_dir in args.sdf_dirs:
+        # Make sdf_dir if it does not exist
+        if not os.path.exists(sdf_dir):
+            os.makedirs(sdf_dir)
         make_qvina_scores_file(sdf_dir, args.receptor_file)
